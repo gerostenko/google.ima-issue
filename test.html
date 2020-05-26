@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        .main-content, #adContainer {
+            width: 320px;
+            height: 180px;
+            float: left;
+            background-color: black;
+            border: 1px solid red;
+        }
+        .original-spot, .new-spot {
+            width: 320px;
+            height: 180px;
+            background-color: green;
+            float: left;
+        }
+        .new-spot {
+            background-color: pink;
+        }
+        .buttons {
+            float:left;
+            width: 100%;
+        }
+    </style>
+    <script src="//imasdk.googleapis.com/js/sdkloader/ima3.js"></script>
+</head>
+<body>
+    <div>
+        <h3> Working example</h3>
+        <ol>
+            <li>
+                Click "PLAY MAIN CONTENT" button
+            </li>
+            <li>
+                Wait For ad to end
+            </li>
+            <li>
+                Main content plays! Yay, it works!
+            </li>
+        </ol>
+    </div>
+    <div>
+        <h3> Broken example</h3>
+        <ol>
+            <li>
+                Click "PLAY MAIN CONTENT" button
+            </li>
+            <li>
+                Click "Move ad" button while the ad is playing
+            </li>
+            <li>
+                Wait for the ad to finish
+            </li>
+            <li>
+                Main content doesn't play! :(
+            </li>
+        </ol>
+    </div>
+    <div class="buttons">
+        <button onclick="console.log('Play clicked');playAds()">PLAY MAIN CONTENT</button>
+        <button onclick="moveAd()">MOVE AD</button>
+    </div>
+<video class="main-content" controls >
+    <source src="https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_20MB.mp4"></source>
+</video>
+<div class="original-spot">
+    <div id="adContainer"></div>
+</div>
+<div class="new-spot">
+
+</div>
+<script>
+    let mainVideo = document.querySelector(".main-content");
+    let adContainer = document.getElementById("adContainer");
+    let newSpot = document.querySelector(".new-spot");
+
+    function moveAd(){
+        newSpot.appendChild(adContainer);
+    }
+
+
+    const AD_URL = "https://pubads.g.doubleclick.net/gampad/ads?sz=640x480&iu=/124319096/external/single_ad_samples&ciu_szs=300x250&impl=s&gdfp_req=1&env=vp&output=vast&unviewed_position_start=1&cust_params=deployment%3Ddevsite%26sample_ct%3Dlinear&correlator=";
+    let adDisplayContainer;
+    let adsManager;
+    let adsLoader;
+    function onAdsManagerLoaded(adsManagerLoadedEvent) {
+                // Get the ads manager.
+                var adsRenderingSettings = new google.ima.AdsRenderingSettings();
+                adsRenderingSettings.restoreCustomPlaybackStateOnAdBreakComplete = false;
+                // videoContent should be set to the content video element.
+                adsManager = adsManagerLoadedEvent.getAdsManager(
+                    mainVideo, adsRenderingSettings);
+
+                adsManager.addEventListener(
+                    google.ima.AdErrorEvent.Type.AD_ERROR,
+                    function(adErrorEvent){
+                        console.log("Ad ERROR:", adErrorEvent.getError());
+                        adsManager.destroy();
+                    });
+
+                adsManager.addEventListener(
+                    google.ima.AdEvent.Type.CONTENT_PAUSE_REQUESTED,
+                    handleContentRequest);
+                adsManager.addEventListener(
+                    google.ima.AdEvent.Type.CONTENT_RESUME_REQUESTED,
+                    handleContentRequest);
+
+                // Listen to any additional events, if necessary.
+                adsManager.addEventListener(
+                    google.ima.AdEvent.Type.LOADED,
+                    onAdEvent);
+                adsManager.addEventListener(
+                    google.ima.AdEvent.Type.STARTED,
+                    onAdEvent);
+                adsManager.addEventListener(
+                    google.ima.AdEvent.Type.COMPLETE,
+                    onAdEvent);
+            }
+
+            function handleContentRequest(adEvent){
+                if(adEvent.type === google.ima.AdEvent.Type.CONTENT_RESUME_REQUESTED) {
+                    mainVideo.play();
+                    console.log("PLAY cause ads said so");
+                } else if (adEvent.type === google.ima.AdEvent.Type.CONTENT_PAUSE_REQUESTED) {
+                    mainVideo.pause();
+                    console.log("PAUSE cause ads said so");
+                }
+
+            }
+
+            function onAdEvent(adEvent) {
+                // Retrieve the ad from the event. Some events (e.g. ALL_ADS_COMPLETED)
+                // don't have ad object associated.
+                let sdkAd = adEvent.getAd();
+                switch (adEvent.type) {
+                    case google.ima.AdEvent.Type.LOADED:
+                        console.log("AD LOADED");
+                        // This is the first event sent for an ad - it is possible to
+                        // determine whether the ad is a video ad or an overlay.
+                        if (!sdkAd.isLinear()) {
+                            // Position AdDisplayContainer correctly for overlay.
+                            // Use ad.width and ad.height.
+                            mainVideo.play();
+                        }
+                        break;
+                    case google.ima.AdEvent.Type.STARTED:
+                    // This event indicates the ad has started - the video player
+                    // can adjust the UI, for example display a pause button and
+                    // remaining time.
+                    if (sdkAd.isLinear()) {
+                        // For a linear ad, a timer can be started to poll for
+                        // the remaining time.
+                        intervalTimer = setInterval(
+                            function() {
+                            var remainingTime = adsManager.getRemainingTime();
+                            },
+                            300); // every 300ms
+                    }
+                    break;
+                    case google.ima.AdEvent.Type.COMPLETE:
+                    // This event indicates the ad has finished - the video player
+                    // can perform appropriate UI actions, such as removing the timer for
+                    // remaining time detection.
+                    if (sdkAd.isLinear()) {
+                        clearInterval(intervalTimer);
+                    }
+                    break;
+                }
+            }
+
+            function playAds() {
+                // Initialize the container. Must be done via a user action on mobile devices.
+                mainVideo.load();
+                adDisplayContainer.initialize();
+
+                try {
+                    // Initialize the ads manager. Ad rules playlist will start at this time.
+                    adsManager.init(320, 180, google.ima.ViewMode.NORMAL);
+                    // Call play to start showing the ad. Single video and overlay ads will
+                    // start at this time; the call will be ignored for ad rules.
+                    adsManager.start();
+                } catch (adError) {
+                    // An error may be thrown if there was a problem with the VAST response.
+                    mainVideo.play();
+                }
+            }
+
+        function init(){
+            console.log("INITIZALIZE AD");
+            adDisplayContainer = new google.ima.AdDisplayContainer(
+                    document.getElementById('adContainer'), mainVideo);
+
+            adsLoader = new google.ima.AdsLoader(adDisplayContainer);
+
+            adsLoader.addEventListener(
+                google.ima.AdsManagerLoadedEvent.Type.ADS_MANAGER_LOADED,
+                onAdsManagerLoaded,
+                false);
+
+
+            // An event listener to tell the SDK that our content video
+            // is completed so the SDK can play any post-roll ads.
+            var contentEndedListener = function() {adsLoader.contentComplete();};
+            mainVideo.onended = contentEndedListener;
+
+            // Request video ads.
+            var adsRequest = new google.ima.AdsRequest();
+            adsRequest.adTagUrl = AD_URL;
+
+            // Specify the linear and nonlinear slot sizes. This helps the SDK to
+            // select the correct creative if multiple are returned.
+            adsRequest.linearAdSlotWidth = 320;
+            adsRequest.linearAdSlotHeight = 180;
+
+            adsRequest.nonLinearAdSlotWidth = 320;
+            adsRequest.nonLinearAdSlotHeight = 180;
+
+            adsLoader.requestAds(adsRequest);
+        }
+        init();
+</script>
+</body>
+</html>
